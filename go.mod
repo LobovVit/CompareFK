@@ -7,6 +7,7 @@ require (
 	github.com/jackc/pgx/v5 v5.4.3
 	github.com/sijms/go-ora/v2 v2.8.11
 	go.uber.org/zap v1.25.0
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (
