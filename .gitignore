@@ -13,9 +13,6 @@
 *.log
 *.txt
 
-# config
-*.yml
-
 # Dependency directories (remove the comment below to include it)
 vendor/
 
