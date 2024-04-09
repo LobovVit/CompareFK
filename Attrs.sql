@@ -1,0 +1,1 @@
+select doc_external_id as guid, ae.currency||'='||ae.amount as masterText from acc_entry ae where ae.doc_external_id = any($1);

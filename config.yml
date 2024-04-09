@@ -1,0 +1,6 @@
+mode: "difference"  #"difference" / "intersection"
+#important for difference mode, working as "master set MINUS slave set"
+masterdsn: #"oracle://<login>:<password>@<host>:<port>/<sid>" #first DB
+slavedsn: #"postgresql://<login>:<password>@<host>:<port>/<sid>" ##second DB
+attrs: "none" # "slave"/"master"/"none"
+loglevel: "info"
