@@ -25,7 +25,7 @@ func WriteFile(fileName string, slice []string) error {
 	err := os.WriteFile(fileName, []byte(s), 0644)
 	if err != nil {
 		logger.Log.Error("ERR", zap.Error(err))
-		return fmt.Errorf("select master: %w", err)
+		return fmt.Errorf("WriteFile: %w", err)
 	}
 	logger.Log.Info("Файл записан", zap.String("файл", fileName))
 	return nil

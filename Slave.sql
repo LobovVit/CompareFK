@@ -1,1 +1,0 @@
-select ae.doc_external_id from acc_entry ae where ae.doc_external_id = any($1)
