@@ -9,7 +9,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
-	_ "gopkg.in/natefinch/lumberjack.v2"
 )
 
 var Log = zap.NewNop()
