@@ -23,7 +23,7 @@ type Config struct {
 
 func GetConfig() (*Config, error) {
 	log.Print("read config")
-	cfgFile := flag.String("mode", "config.yml", "путь к конфиг файлу")
+	cfgFile := flag.String("c", "config.yml", "путь к конфиг файлу")
 	flag.Parse()
 	config := &Config{}
 	if err := cleanenv.ReadConfig(*cfgFile, config); err != nil {

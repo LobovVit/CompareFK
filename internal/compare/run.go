@@ -68,7 +68,8 @@ func (c *Comparator) Run(ctx context.Context) error {
 		return fmt.Errorf("mode is incorrect")
 	}
 
-	err = files.WriteFile("./"+time.Now().Format(time.DateTime)+c.config.ResFile+c.config.Мode+".txt", c.resultGuids)
+	logger.Log.Info("write results", zap.Int("count", len(c.resultGuids)))
+	err = files.WriteFile(time.Now().Format("2006_01_02_15_04_05")+c.config.ResFile+c.config.Мode+".txt", c.resultGuids)
 	if err != nil {
 		return fmt.Errorf("write file: %w", err)
 	}
@@ -169,6 +170,6 @@ func (c *Comparator) getSlaveDataParallel(ctx context.Context) error {
 			return fmt.Errorf("getSlaveDataParallel: %w", err)
 		}
 	}
-	logger.Log.Info("Get slave data full OK", zap.Int(fmt.Sprintf("%v part count:", maxPart+1), len(c.resultGuids)))
+	logger.Log.Info("Get slave data full OK", zap.Int(fmt.Sprintf("%v part count:", maxPart+1), len(c.slaveGuids)))
 	return nil
 }
