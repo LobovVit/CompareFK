@@ -1,7 +1,7 @@
 mode: "intersection"  #"difference" / "intersection"
 #important for difference mode, working as "master set MINUS slave set"
-masterdsn: "oracle://EXP05FBN2:Oracle33@eb-exp05fb-dev-n2-poi-db.otr.ru:1531/ebpoi" #"oracle://<login>:<password>@<host>:<port>/<sid>" #first DB
-slavedsn: "postgresql://postgres:password@10.66.66.3:5432/fah" #"postgresql://<login>:<password>@<host>:<port>/<sid>" #second DB
+masterdsn: #"oracle://<login>:<password>@<host>:<port>/<sid>" #first DB
+slavedsn: #"postgresql://<login>:<password>@<host>:<port>/<sid>" #second DB
 loglevel: "info"
 limit: 1000
 ratelimit: 2
