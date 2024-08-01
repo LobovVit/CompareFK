@@ -31,15 +31,15 @@ func GetConfig() (*Config, error) {
 	}
 
 	if config.Мode == "" {
-		return nil, errors.New("Укажите mode: \"difference\" или \"intersection\"")
+		return nil, errors.New("укажите mode: \"difference\" или \"intersection\"")
 	}
 
 	if config.Masterdsn == "" {
-		return nil, errors.New("Укажите Masterdsn: \"postgresql://<login>:<password>@<host>:<port>/<sid>\"")
+		return nil, errors.New("укажите Masterdsn: \"postgresql://<login>:<password>@<host>:<port>/<sid>\"")
 	}
 
 	if config.Slavedsn == "" {
-		return nil, errors.New("Укажите Slavedsn: \"postgresql://<login>:<password>@<host>:<port>/<sid>\"")
+		return nil, errors.New("укажите Slavedsn: \"postgresql://<login>:<password>@<host>:<port>/<sid>\"")
 	}
 
 	if config.LogLevel == "" {
