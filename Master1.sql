@@ -1,1 +1,0 @@
-SELECT dd.GLOBALDOCID FROM doc dd where rownum <= 13500

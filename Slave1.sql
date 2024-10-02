@@ -1,1 +1,0 @@
-select ae.guid from guids ae where ae.guid = any($1)

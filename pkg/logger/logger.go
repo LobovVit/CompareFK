@@ -1,8 +1,10 @@
 package logger
 
 import (
+	"Compare/internal/result"
 	"fmt"
 	"io"
+	"path/filepath"
 	"time"
 
 	"Compare/internal/config"
@@ -29,8 +31,9 @@ func Initialize(config *config.Config) error {
 	cfg := zap.NewProductionConfig()
 	cfg.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339)
 	cfg.Encoding = "console"
-	cfg.OutputPaths = []string{config.LogFile}
-	sw := getWriteSyncer(config.LogFile)
+	path := filepath.Join(result.Res.DateTimeFolder, "error.log")
+	cfg.OutputPaths = []string{path}
+	sw := getWriteSyncer(path)
 
 	cfg.Level = lvl
 

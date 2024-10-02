@@ -1,11 +1,9 @@
-mode: "intersection"  #"difference" / "intersection"
+mode: "difference"  #"difference" / "intersection"
 #important for difference mode, working as "master set MINUS slave set"
 masterdsn: #"oracle://<login>:<password>@<host>:<port>/<sid>" #first DB
 slavedsn: #"postgresql://<login>:<password>@<host>:<port>/<sid>" #second DB
-loglevel: "info"
-limit: 1000
-ratelimit: 2
-mastersql: "./Master1.sql"
-slavesql: "./Slave1.sql"
-resfile: "_first_"
-logfile: "First_compare.log"
+loglevel: "error" # "error" "info" "debug"
+limit: 50000
+ratelimit: 5
+mastersql: "./Master/"
+slavesql: "./Slave.sql"

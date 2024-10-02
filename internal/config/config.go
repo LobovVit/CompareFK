@@ -8,6 +8,8 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 )
 
+var Cfg *Config
+
 type Config struct {
 	Мode      string `yaml:"mode"`
 	Masterdsn string `yaml:"masterdsn"`
@@ -17,11 +19,15 @@ type Config struct {
 	RateLimit int    `yaml:"ratelimit"`
 	MasterSQL string `yaml:"mastersql"`
 	SlaveSQL  string `yaml:"slavesql"`
-	LogFile   string `yaml:"logfile"`
-	ResFile   string `yaml:"resfile"`
 }
 
-func GetConfig() (*Config, error) {
+func Initialize() error {
+	cfg, err := getConfig()
+	Cfg = cfg
+	return err
+}
+
+func getConfig() (*Config, error) {
 	log.Print("read config")
 	cfgFile := flag.String("c", "config.yml", "путь к конфиг файлу")
 	flag.Parse()
@@ -30,7 +36,7 @@ func GetConfig() (*Config, error) {
 		return nil, err
 	}
 
-	if config.Мode == "" {
+	if !(config.Мode == "difference" || config.Мode == "intersection") {
 		return nil, errors.New("укажите mode: \"difference\" или \"intersection\"")
 	}
 
@@ -55,19 +61,11 @@ func GetConfig() (*Config, error) {
 	}
 
 	if config.MasterSQL == "" {
-		config.MasterSQL = "./Master1.sql"
+		config.MasterSQL = "./Master/"
 	}
 
 	if config.SlaveSQL == "" {
-		config.SlaveSQL = "./Slave1.sql"
-	}
-
-	if config.LogFile == "" {
-		config.LogFile = "./Slave1.sql"
-	}
-
-	if config.ResFile == "" {
-		config.ResFile = "./Slave1.sql"
+		config.SlaveSQL = "./Slave.sql"
 	}
 
 	return config, nil

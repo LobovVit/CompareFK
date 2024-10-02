@@ -2,6 +2,6 @@
 ## for support federal treasury
 ## Windows
 ```
-GOOS=windows GOARCH=386 go build -o compare.exe
+GOOS=windows GOARCH=amd64 go build -o ../../bin/compare.exe
 ```
 ---

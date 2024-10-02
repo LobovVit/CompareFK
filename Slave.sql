@@ -1,0 +1,1 @@
+select guid from slave where guid = any($1)

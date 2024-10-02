@@ -1,13 +1,15 @@
 package main
 
 import (
+	"Compare/internal/result"
 	"context"
 	"fmt"
+	"go.uber.org/zap"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"Compare/internal/compare"
+	"Compare/internal/app"
 	"Compare/internal/config"
 	"Compare/pkg/logger"
 )
@@ -19,21 +21,29 @@ func main() {
 }
 
 func run() error {
-	cfg, err := config.GetConfig()
-	if err != nil {
-		return fmt.Errorf("get config: %w", err)
+	if err := result.Initialize(); err != nil {
+		return fmt.Errorf("result initialize: %w", err)
 	}
-	if err = logger.Initialize(cfg); err != nil {
+	if err := config.Initialize(); err != nil {
+		return fmt.Errorf("config initialize: %w", err)
+	}
+	if err := logger.Initialize(config.Cfg); err != nil {
 		return fmt.Errorf("log initialize: %w", err)
 	}
-	ShowConfig(cfg)
+	ShowConfig(config.Cfg)
+
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGABRT)
 	defer cancel()
-	app, err := compare.NewComparator(cfg)
+	application, err := app.NewComparator()
 	if err != nil {
-		return err
+		logger.Log.Error("new application", zap.Error(err))
+		return fmt.Errorf("new application: %w", err)
 	}
-	return app.Run(ctx)
+	if err := application.Run(ctx); err != nil {
+		logger.Log.Error("run application", zap.Error(err))
+		return fmt.Errorf("run application: %w", err)
+	}
+	return nil
 }
 
 func ShowConfig(c *config.Config) {
@@ -48,7 +58,5 @@ func ShowConfig(c *config.Config) {
 	logger.Log.Info(fmt.Sprintf("config---RateLimit: %v", c.RateLimit))
 	logger.Log.Info(fmt.Sprintf("config---MasterSQL: %v", c.MasterSQL))
 	logger.Log.Info(fmt.Sprintf("config---SlaveSQL: %v", c.SlaveSQL))
-	logger.Log.Info(fmt.Sprintf("config---LogFile: %v", c.LogFile))
-	logger.Log.Info(fmt.Sprintf("config---ResFilePrefix: %v", c.ResFile))
 	logger.Log.Info("--------------------------------------------")
 }
