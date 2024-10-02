@@ -133,7 +133,7 @@ func (m *MemStorage) addPartSlave(ctx context.Context, sql string, val []string,
 func (m *MemStorage) GetResult(ctx context.Context) []string {
 	executeStep := "z_compute_" + config.Cfg.Мode
 	startTime := time.Now()
-	resultGuids := make([]string, 0)
+	var resultGuids []string
 	switch config.Cfg.Мode {
 	case "intersection":
 		resultGuids = compare.Intersection(m.masterGuids, m.slaveGuids)
