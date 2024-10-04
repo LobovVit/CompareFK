@@ -37,10 +37,12 @@ func (m *MemStorage) GetMaster(ctx context.Context, i int, sql string, db *sql.D
 	startTime := time.Now()
 	masterRows, err := db.QueryContext(ctx, sql)
 	if err != nil {
-		return fmt.Errorf("select master: %w", err)
+		logger.Log.Error("select master query", zap.Error(err))
+		return fmt.Errorf("select master query: %w", err)
 	}
 	if err = masterRows.Err(); err != nil {
-		return fmt.Errorf("select master: %w", err)
+		logger.Log.Error("select master rows", zap.Error(err))
+		return fmt.Errorf("select master rows: %w", err)
 	}
 	defer masterRows.Close()
 
@@ -49,7 +51,8 @@ func (m *MemStorage) GetMaster(ctx context.Context, i int, sql string, db *sql.D
 		var guid string
 		err = masterRows.Scan(&guid)
 		if err != nil {
-			return fmt.Errorf("select slave: %w", err)
+			logger.Log.Error("select master (Scan)", zap.Error(err))
+			return fmt.Errorf("select master (Scan): %w", err)
 		}
 		tmpMasterGuids = append(tmpMasterGuids, guid)
 	}
@@ -68,7 +71,7 @@ func (m *MemStorage) GetSlave(ctx context.Context, sql string, db *sql.DB) error
 		logger.Log.Error("write SQL file error", zap.Error(err))
 	}
 	var maxPart = len(m.masterGuids) / config.Cfg.Limit
-	logger.Log.Info("maxPart:", zap.Int("maxPart", maxPart+1))
+	logger.Log.Info("max part:", zap.Int("maxPart", maxPart+1))
 	g := errgroup.Group{}
 	g.SetLimit(config.Cfg.RateLimit)
 	for part := 0; part <= maxPart; part++ {
@@ -82,20 +85,21 @@ func (m *MemStorage) GetSlave(ctx context.Context, sql string, db *sql.DB) error
 		g.Go(func() error {
 			res, err := m.addPartSlave(ctx, sql, val, startPos, endPos, db)
 			if err != nil {
-				return fmt.Errorf("addPartSlave: %w", err)
+				logger.Log.Error("add part slave", zap.Error(err))
+				return fmt.Errorf("add part slave: %w", err)
 			}
 			m.mutex.Lock()
 			m.slaveGuids = append(m.slaveGuids, res...)
 			m.mutex.Unlock()
 			logger.Log.Info("Get slave data goroutine OK",
 				zap.Int("goroutine count:", len(res)),
-				zap.Int("slaveGuids count:", len(m.slaveGuids)))
+				zap.Int("slave guids count:", len(m.slaveGuids)))
 			return nil
 		})
 	}
 	if err := g.Wait(); err != nil {
-		logger.Log.Info("getSlaveDataParallel", zap.Error(err))
-		return fmt.Errorf("getSlaveDataParallel: %w", err)
+		logger.Log.Error("get slave data parallel", zap.Error(err))
+		return fmt.Errorf("get slave data parallel: %w", err)
 	}
 	logger.Log.Info("Get slave data full OK", zap.Int(fmt.Sprintf("%v part count:", maxPart+1), len(m.slaveGuids)))
 	return nil
@@ -106,27 +110,27 @@ func (m *MemStorage) addPartSlave(ctx context.Context, sql string, val []string,
 	res := []string{}
 	slaveRows, err := db.QueryContext(ctx, sql, val)
 	if err != nil {
-		logger.Log.Error("Select slave", zap.Error(err))
-		return nil, fmt.Errorf("select slave: %w", err)
+		logger.Log.Error("select slave query", zap.Error(err))
+		return nil, fmt.Errorf("select slave query: %w", err)
 	}
 	if err = slaveRows.Err(); err != nil {
-		logger.Log.Error("Select slave", zap.Error(err))
-		return nil, fmt.Errorf("select slave: %w", err)
+		logger.Log.Error("select slave rows", zap.Error(err))
+		return nil, fmt.Errorf("select slave rows: %w", err)
 	}
 	defer slaveRows.Close()
 	var guid string
 	for slaveRows.Next() {
 		err = slaveRows.Scan(&guid)
 		if err != nil {
-			logger.Log.Error("Scan rows", zap.Error(err))
-			return nil, fmt.Errorf("scan rows: %w", err)
+			logger.Log.Error("select slave (Scan)", zap.Error(err))
+			return nil, fmt.Errorf("select slave (Scan): %w", err)
 		}
 		res = append(res, guid)
 	}
 	endTime := time.Now()
 	count := len(res)
 	result.Res.StatRows[executeFileName] = result.ScriptStat{StartTime: startTime, EndTime: endTime, Count: count}
-	logger.Log.Debug(result.Res.GetResultString("addPartSlave"))
+	logger.Log.Debug(result.Res.GetResultString("add part slave"))
 	return res, nil
 }
 
@@ -140,12 +144,12 @@ func (m *MemStorage) GetResult(ctx context.Context) []string {
 	case "difference":
 		resultGuids = compare.Difference(m.masterGuids, m.slaveGuids)
 	default:
-		logger.Log.Info("mode is incorrect")
+		logger.Log.Error("mode is incorrect")
 		return nil
 	}
 	endTime := time.Now()
 	count := len(resultGuids)
 	result.Res.StatRows[executeStep] = result.ScriptStat{StartTime: startTime, EndTime: endTime, Count: count}
-	logger.Log.Debug(result.Res.GetResultString("GetResult"))
+	logger.Log.Debug(result.Res.GetResultString("get result"))
 	return resultGuids
 }

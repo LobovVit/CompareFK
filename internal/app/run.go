@@ -65,7 +65,6 @@ func (c *Comparator) Run(ctx context.Context) error {
 	var statistic = make([]string, 0)
 	statistic = append(statistic,
 		"--------------------------------------------",
-		fmt.Sprintf("Masterdsn: %v", config.Cfg.Masterdsn),
 		fmt.Sprintf("Мode: %v", config.Cfg.Мode),
 		fmt.Sprintf("Masterdsn: %v", config.Cfg.Masterdsn),
 		fmt.Sprintf("Slavedsn: %v", config.Cfg.Slavedsn),
@@ -87,10 +86,12 @@ func (c *Comparator) getMasterData(ctx context.Context) error {
 	//get master data
 	mastedDB, err := db.NweConn(config.Cfg.Masterdsn)
 	if err != nil {
-		return fmt.Errorf("ошибка conn master: %w", err)
+		logger.Log.Error("conn master", zap.Error(err))
+		return fmt.Errorf("conn master: %w", err)
 	}
 	if err := mastedDB.PingContext(ctx); err != nil {
-		return fmt.Errorf("ошибка ping master: %w", err)
+		logger.Log.Error("ping master", zap.Error(err))
+		return fmt.Errorf("ping master: %w", err)
 	}
 	g := errgroup.Group{}
 	g.SetLimit(config.Cfg.RateLimit)
@@ -98,14 +99,15 @@ func (c *Comparator) getMasterData(ctx context.Context) error {
 		g.Go(func() error {
 			err = c.Storage.GetMaster(ctx, i, script, mastedDB)
 			if err != nil {
-				return fmt.Errorf("ошибка get master: %w", err)
+				logger.Log.Error("get master", zap.Error(err))
+				return fmt.Errorf("get master: %w", err)
 			}
 			return nil
 		})
 	}
 	if err := g.Wait(); err != nil {
-		logger.Log.Info("getSlaveDataParallel", zap.Error(err))
-		return fmt.Errorf("getSlaveDataParallel: %w", err)
+		logger.Log.Error("get master data", zap.Error(err))
+		return fmt.Errorf("get master data: %w", err)
 	}
 	return nil
 }
@@ -114,14 +116,17 @@ func (c *Comparator) getSlaveData(ctx context.Context) error {
 	//get slave data
 	slaveDB, err := db.NweConn(config.Cfg.Slavedsn)
 	if err != nil {
-		return fmt.Errorf("ошибка conn slave: %w", err)
+		logger.Log.Error("conn slave", zap.Error(err))
+		return fmt.Errorf("conn slave: %w", err)
 	}
 	if err := slaveDB.PingContext(ctx); err != nil {
-		return fmt.Errorf("ошибка ping slave: %w", err)
+		logger.Log.Error("ping slave", zap.Error(err))
+		return fmt.Errorf("ping slave: %w", err)
 	}
 	err = c.Storage.GetSlave(ctx, c.slaveSQL, slaveDB)
 	if err != nil {
-		logger.Log.Error("ошибка get slave", zap.Error(err))
+		logger.Log.Error("get slave data", zap.Error(err))
+		return fmt.Errorf("get slave data: %w", err)
 	}
 	return nil
 }

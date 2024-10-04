@@ -3,7 +3,7 @@ mode: "difference"  #"difference" / "intersection"
 masterdsn: #"oracle://<login>:<password>@<host>:<port>/<sid>" #first DB
 slavedsn: #"postgresql://<login>:<password>@<host>:<port>/<sid>" #second DB
 loglevel: "error" # "error" "info" "debug"
-limit: 50000
-ratelimit: 5
+limit: 200000
+ratelimit: 50
 mastersql: "./Master/"
 slavesql: "./Slave.sql"
