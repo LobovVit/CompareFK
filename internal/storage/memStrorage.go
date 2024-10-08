@@ -1,19 +1,20 @@
 package storage
 
 import (
+	"context"
+	"database/sql"
+	"fmt"
+	"strconv"
+	"sync"
+	"time"
+
 	"Compare/internal/config"
 	"Compare/internal/result"
 	"Compare/pkg/compare"
 	"Compare/pkg/files"
 	"Compare/pkg/logger"
-	"context"
-	"database/sql"
-	"fmt"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
-	"strconv"
-	"sync"
-	"time"
 )
 
 type MemStorage struct {
