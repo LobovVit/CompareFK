@@ -1,15 +1,16 @@
 package app
 
 import (
+	"context"
+	"database/sql"
+	"fmt"
+
 	"Compare/internal/config"
 	"Compare/internal/result"
 	"Compare/internal/storage"
 	"Compare/pkg/db"
 	"Compare/pkg/files"
 	"Compare/pkg/logger"
-	"context"
-	"database/sql"
-	"fmt"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -35,7 +36,7 @@ func NewComparator() (*Comparator, error) {
 	if err != nil {
 		return nil, fmt.Errorf("readFile SlaveSQL: %w", err)
 	}
-	store := storage.GetMemStorage()
+	store := storage.GetMemStorage() //todo - storage.getSQLLightStorage (from config)
 	return &Comparator{
 			masterSQL: mSQL,
 			slaveSQL:  sSQL,
