@@ -1,4 +1,8 @@
 # CompareFK
+
+группа в tg
+https://t.me/CompareFK
+
 ## for support federal treasury
 ## Windows
 ```
