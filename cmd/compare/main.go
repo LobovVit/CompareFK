@@ -1,26 +1,36 @@
 package main
 
 import (
-	"Compare/internal/result"
 	"context"
 	"fmt"
-	"go.uber.org/zap"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"Compare/internal/result"
+	"go.uber.org/zap"
 
 	"Compare/internal/app"
 	"Compare/internal/config"
 	"Compare/pkg/logger"
 )
 
+var (
+	buildVersion = "N/A"
+	buildDate    = "N/A"
+	buildCommit  = "N/A"
+)
+
 func main() {
-	if err := run(); err != nil {
+	fmt.Printf("Build version: %s\n", buildVersion)
+	fmt.Printf("Build date: %s\n", buildDate)
+	fmt.Printf("Build commit: %s\n", buildCommit)
+	if err := run(context.Background()); err != nil {
 		panic(err)
 	}
 }
 
-func run() error {
+func run(ctx context.Context) error {
 	if err := result.Initialize(); err != nil {
 		return fmt.Errorf("result initialize: %w", err)
 	}
@@ -32,7 +42,7 @@ func run() error {
 	}
 	ShowConfig(config.Cfg)
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGABRT)
+	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGABRT)
 	defer cancel()
 	application, err := app.NewComparator()
 	if err != nil {
@@ -47,6 +57,10 @@ func run() error {
 }
 
 func ShowConfig(c *config.Config) {
+	logger.Log.Info("--------------------------------------------")
+	logger.Log.Info(fmt.Sprintf("Build version: %s\n", buildVersion))
+	logger.Log.Info(fmt.Sprintf("Build date: %s\n", buildDate))
+	logger.Log.Info(fmt.Sprintf("Build commit: %s\n", buildCommit))
 	logger.Log.Info("--------------------------------------------")
 	logger.Log.Info("--------" + time.Now().Format(time.DateTime) + "------")
 	logger.Log.Info("--------------------------------------------")
