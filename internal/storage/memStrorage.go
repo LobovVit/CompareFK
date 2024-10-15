@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"Compare/internal/config"
-	"Compare/internal/result"
-	"Compare/pkg/compare"
-	"Compare/pkg/files"
-	"Compare/pkg/logger"
+	"github.com/LobovVit/CompareFK/internal/config"
+	"github.com/LobovVit/CompareFK/internal/result"
+	"github.com/LobovVit/CompareFK/pkg/compare"
+	"github.com/LobovVit/CompareFK/pkg/files"
+	"github.com/LobovVit/CompareFK/pkg/logger"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )

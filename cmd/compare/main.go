@@ -7,12 +7,12 @@ import (
 	"syscall"
 	"time"
 
-	"Compare/internal/result"
+	"github.com/LobovVit/CompareFK/internal/result"
 	"go.uber.org/zap"
 
-	"Compare/internal/app"
-	"Compare/internal/config"
-	"Compare/pkg/logger"
+	"github.com/LobovVit/CompareFK/internal/app"
+	"github.com/LobovVit/CompareFK/internal/config"
+	"github.com/LobovVit/CompareFK/pkg/logger"
 )
 
 var (
@@ -31,11 +31,11 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	if err := result.Initialize(); err != nil {
-		return fmt.Errorf("result initialize: %w", err)
-	}
 	if err := config.Initialize(); err != nil {
 		return fmt.Errorf("config initialize: %w", err)
+	}
+	if err := result.Initialize(config.Cfg.ConfigFile); err != nil {
+		return fmt.Errorf("result initialize: %w", err)
 	}
 	if err := logger.Initialize(config.Cfg); err != nil {
 		return fmt.Errorf("log initialize: %w", err)
