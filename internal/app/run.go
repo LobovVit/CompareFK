@@ -5,12 +5,12 @@ import (
 	"database/sql"
 	"fmt"
 
-	"Compare/internal/config"
-	"Compare/internal/result"
-	"Compare/internal/storage"
-	"Compare/pkg/db"
-	"Compare/pkg/files"
-	"Compare/pkg/logger"
+	"github.com/LobovVit/CompareFK/internal/config"
+	"github.com/LobovVit/CompareFK/internal/result"
+	"github.com/LobovVit/CompareFK/internal/storage"
+	"github.com/LobovVit/CompareFK/pkg/db"
+	"github.com/LobovVit/CompareFK/pkg/files"
+	"github.com/LobovVit/CompareFK/pkg/logger"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )

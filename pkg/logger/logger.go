@@ -1,13 +1,14 @@
 package logger
 
 import (
-	"Compare/internal/result"
 	"fmt"
 	"io"
 	"path/filepath"
 	"time"
 
-	"Compare/internal/config"
+	"github.com/LobovVit/CompareFK/internal/result"
+
+	"github.com/LobovVit/CompareFK/internal/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"

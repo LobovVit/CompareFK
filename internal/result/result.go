@@ -22,8 +22,8 @@ type ScriptStat struct {
 	Count     int
 }
 
-func Initialize() error {
-	Res = &Result{DateTimeFolder: time.Now().Format("2006_01_02_15_04_05"),
+func Initialize(fldPrefix string) error {
+	Res = &Result{DateTimeFolder: fldPrefix + time.Now().Format("_2006_01_02_15_04_05"),
 		StatRows: make(map[string]ScriptStat)}
 	if err := os.Mkdir(Res.DateTimeFolder, os.ModePerm); err != nil {
 		return fmt.Errorf("mkdir %v: %w", Res.DateTimeFolder, err)

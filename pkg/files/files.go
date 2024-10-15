@@ -1,11 +1,12 @@
 package files
 
 import (
-	"Compare/internal/result"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/LobovVit/CompareFK/internal/result"
 )
 
 func ReadFile(fileName string) (string, error) {

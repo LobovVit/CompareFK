@@ -11,14 +11,15 @@ import (
 var Cfg *Config
 
 type Config struct {
-	Мode      string `yaml:"mode"`
-	Masterdsn string `yaml:"masterdsn"`
-	Slavedsn  string `yaml:"slavedsn"`
-	LogLevel  string `yaml:"loglevel"`
-	Limit     int    `yaml:"limit"`
-	RateLimit int    `yaml:"ratelimit"`
-	MasterSQL string `yaml:"mastersql"`
-	SlaveSQL  string `yaml:"slavesql"`
+	Мode       string `yaml:"mode"`
+	Masterdsn  string `yaml:"masterdsn"`
+	Slavedsn   string `yaml:"slavedsn"`
+	LogLevel   string `yaml:"loglevel"`
+	Limit      int    `yaml:"limit"`
+	RateLimit  int    `yaml:"ratelimit"`
+	MasterSQL  string `yaml:"mastersql"`
+	SlaveSQL   string `yaml:"slavesql"`
+	ConfigFile string
 }
 
 func Initialize() error {
@@ -35,6 +36,8 @@ func getConfig() (*Config, error) {
 	if err := cleanenv.ReadConfig(*cfgFile, config); err != nil {
 		return nil, err
 	}
+
+	config.ConfigFile = *cfgFile
 
 	if !(config.Мode == "difference" || config.Мode == "intersection") {
 		return nil, errors.New("укажите mode: \"difference\" или \"intersection\"")
