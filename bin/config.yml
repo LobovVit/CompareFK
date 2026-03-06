@@ -1,9 +1,36 @@
-mode: "difference"  #"difference" / "intersection"
-#important for difference mode, working as "master set MINUS slave set"
-masterdsn: "oracle://<login>:<password>@<host>:<port>/<sid>?TIMEOUT=1200" #first DB
-slavedsn: "postgresql://<login>:<password>@<host>:<port>/<sid>" #second DB
-loglevel: "debug" # "error" "info" "debug"
-limit: 100000
-ratelimit: 50
-mastersql: "./Master/"
-slavesql: "./Slave.sql"
+app:
+  mode: difference              # difference | intersection
+  output_dir: ./output
+  limit: 50000
+  ratelimit: 4
+
+masterdb:
+  dsn: "postgres://USER:PASSWORD@MASTER_HOST:5432/DBNAME?sslmode=disable"
+
+slavedb:
+  dsn: "postgres://USER:PASSWORD@SLAVE_HOST:5432/DBNAME?sslmode=disable"
+
+sql:
+  master_sql_files:
+    - ./sql/master/0_master.sql
+    - ./sql/master/1_master.sql
+    - ./sql/master/2_master.sql
+    - ./sql/master/3_master.sql
+  slave_sql_file: ./sql/slave/Slave.sql
+
+storage:
+  type: sqlite
+  sqlite_path: ./work/compare.db
+  cleanup_on_start: true
+  cleanup_on_finish: false
+  sqlite_write_batch: 20000
+
+sqlite:
+  pragmas:
+    - "PRAGMA journal_mode = WAL;"
+    - "PRAGMA synchronous = NORMAL;"
+    - "PRAGMA temp_store = FILE;"
+    - "PRAGMA cache_size = -65536;"
+    - "PRAGMA mmap_size = 268435456;"
+    - "PRAGMA foreign_keys = OFF;"
+    - "PRAGMA busy_timeout = 5000;"

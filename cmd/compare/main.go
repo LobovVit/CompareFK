@@ -40,11 +40,12 @@ func run(ctx context.Context) error {
 	if err := logger.Initialize(config.Cfg); err != nil {
 		return fmt.Errorf("log initialize: %w", err)
 	}
-	ShowConfig(config.Cfg)
+	showConfig(config.Cfg)
 
 	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGABRT)
 	defer cancel()
-	application, err := app.NewComparator()
+
+	application, err := app.NewComparator(ctx)
 	if err != nil {
 		logger.Log.Error("new application", zap.Error(err))
 		return fmt.Errorf("new application: %w", err)
@@ -56,7 +57,7 @@ func run(ctx context.Context) error {
 	return nil
 }
 
-func ShowConfig(c *config.Config) {
+func showConfig(c *config.Config) {
 	logger.Log.Info("--------------------------------------------")
 	logger.Log.Info(fmt.Sprintf("Build version: %s\n", buildVersion))
 	logger.Log.Info(fmt.Sprintf("Build date: %s\n", buildDate))
@@ -64,13 +65,22 @@ func ShowConfig(c *config.Config) {
 	logger.Log.Info("--------------------------------------------")
 	logger.Log.Info("--------" + time.Now().Format(time.DateTime) + "------")
 	logger.Log.Info("--------------------------------------------")
-	logger.Log.Info(fmt.Sprintf("config---Мode: %v", c.Мode))
-	logger.Log.Info(fmt.Sprintf("config---Masterdsn: %v", c.Masterdsn))
-	logger.Log.Info(fmt.Sprintf("config---Slavedsn: %v", c.Slavedsn))
+	logger.Log.Info(fmt.Sprintf("config---Mode: %v", c.Mode))
+	logger.Log.Info(fmt.Sprintf("config---MasterDSN: %v", c.MasterDSN))
+	logger.Log.Info(fmt.Sprintf("config---SlaveDSN: %v", c.SlaveDSN))
 	logger.Log.Info(fmt.Sprintf("config---LogLevel: %v", c.LogLevel))
 	logger.Log.Info(fmt.Sprintf("config---Limit: %v", c.Limit))
 	logger.Log.Info(fmt.Sprintf("config---RateLimit: %v", c.RateLimit))
-	logger.Log.Info(fmt.Sprintf("config---MasterSQL: %v", c.MasterSQL))
-	logger.Log.Info(fmt.Sprintf("config---SlaveSQL: %v", c.SlaveSQL))
+	logger.Log.Info(fmt.Sprintf("config---MasterSQLDir: %v", c.MasterSQLDir))
+	logger.Log.Info(fmt.Sprintf("config---MasterSQLGlob: %v", c.MasterSQLGlob))
+	logger.Log.Info(fmt.Sprintf("config---MasterSQLFiles: %v", c.MasterSQLFiles))
+	logger.Log.Info(fmt.Sprintf("config---SlaveSQLFile: %v", c.SlaveSQLFile))
+	logger.Log.Info(fmt.Sprintf("config---Storage: %v", c.Storage))
+	logger.Log.Info(fmt.Sprintf("config---SQLitePath: %v", c.SQLitePath))
+	logger.Log.Info(fmt.Sprintf("config---SQLiteBusyTimeoutMs: %v", c.SQLiteBusyTimeoutMs))
+	logger.Log.Info(fmt.Sprintf("config---SQLiteCacheSizeKB: %v", c.SQLiteCacheSizeKB))
+	logger.Log.Info(fmt.Sprintf("config---SQLiteMmapSizeMB: %v", c.SQLiteMmapSizeMB))
+	logger.Log.Info(fmt.Sprintf("config---SQLiteWriteBatch: %v", c.SQLiteWriteBatch))
+	logger.Log.Info(fmt.Sprintf("config---OutputDir: %v", c.OutputDir))
 	logger.Log.Info("--------------------------------------------")
 }
