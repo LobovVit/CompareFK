@@ -45,6 +45,12 @@ type Config struct {
 	SQLiteRunAnalyze      bool     `yaml:"sqlite_run_analyze"`
 	SQLiteVacuumOnFinish  bool     `yaml:"sqlite_vacuum_on_finish"`
 	SQLiteExtraPragmas    []string `yaml:"sqlite_extra_pragmas"`
+
+	WebEnabled      bool   `yaml:"web_enabled"`
+	WebListen       string `yaml:"web_listen"`
+	WebRefreshSec   int    `yaml:"web_refresh_sec"`
+	WebReadTimeout  int    `yaml:"web_read_timeout_sec"`
+	WebWriteTimeout int    `yaml:"web_write_timeout_sec"`
 }
 
 func Initialize() error {
@@ -76,6 +82,7 @@ func getConfig() (*Config, error) {
 	cfg.SQLiteTempStore = strings.TrimSpace(strings.ToUpper(cfg.SQLiteTempStore))
 	cfg.SQLiteSynchronous = strings.TrimSpace(strings.ToUpper(cfg.SQLiteSynchronous))
 	cfg.SQLiteJournalMode = strings.TrimSpace(strings.ToUpper(cfg.SQLiteJournalMode))
+	cfg.WebListen = strings.TrimSpace(cfg.WebListen)
 	for i := range cfg.MasterSQLFiles {
 		cfg.MasterSQLFiles[i] = strings.TrimSpace(cfg.MasterSQLFiles[i])
 	}
@@ -146,6 +153,18 @@ func getConfig() (*Config, error) {
 	}
 	if cfg.MaxOpenConnsSlave <= 0 {
 		cfg.MaxOpenConnsSlave = 1
+	}
+	if cfg.WebListen == "" {
+		cfg.WebListen = ":8080"
+	}
+	if cfg.WebRefreshSec <= 0 {
+		cfg.WebRefreshSec = 2
+	}
+	if cfg.WebReadTimeout <= 0 {
+		cfg.WebReadTimeout = 5
+	}
+	if cfg.WebWriteTimeout <= 0 {
+		cfg.WebWriteTimeout = 30
 	}
 
 	return cfg, nil

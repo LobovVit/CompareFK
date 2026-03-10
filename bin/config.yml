@@ -1,24 +1,32 @@
 mode: difference
 loglevel: info
 
+# Размер одной пачки GUID для slave-запроса.
 limit: 50000
+# Количество параллельных master SQL.
 ratelimit: 4
 
 storage: sqlite
 output_dir: ./runs
 
-masterdsn: "postgres://USER:PASS@HOST:PORT/demo?sslmode=disable"
-slavedsn: "postgres://USER:PASS@HOST:PORT/demo?sslmode=disable"
-
+# DSN к БД-источникам.
+masterdsn: "postgres://user:password@master-host:5432/dbname?sslmode=disable"
+slavedsn: "postgres://user:password@slave-host:5432/dbname?sslmode=disable"
 max_open_conns_master: 4
 max_open_conns_slave: 1
 
-master_sql_files:
-  - ./sql/master/1.sql
-  - ./sql/master/2.sql
-
+# Пути к SQL.
+# Вариант 1: каталог, все *.sql будут прочитаны в алфавитном порядке.
+master_sql_dir: ./sql/master
+# Вариант 2: glob-маска вместо каталога.
+# master_sql_glob: ./sql/master/*.sql
+# Вариант 3: явный список файлов или каталогов вместо каталога/glob.
+# master_sql_files:
+#   - ./sql/master
+#   - ./sql/extra/10_master.sql
 slave_sql_file: ./sql/slave/Slave.sql
 
+# SQLite настройки.
 sqlite_path: work/compare.db
 sqlite_busy_timeout_ms: 5000
 sqlite_cache_size_kb: 65536
@@ -31,7 +39,13 @@ sqlite_journal_mode: WAL
 sqlite_keep_db: false
 sqlite_run_analyze: false
 sqlite_vacuum_on_finish: false
-
 sqlite_extra_pragmas:
   - "PRAGMA wal_autocheckpoint = 1000;"
   - "PRAGMA cache_spill = ON;"
+
+# Простой веб-мониторинг текущего выполнения.
+web_enabled: true
+web_listen: ":8081"
+web_refresh_sec: 2
+web_read_timeout_sec: 5
+web_write_timeout_sec: 30
