@@ -16,9 +16,10 @@ import (
 )
 
 type Storage interface {
-	GetMaster(ctx context.Context, i int, sql string, db *sql.DB) error
-	GetSlave(ctx context.Context, sql string, db *sql.DB) error
-	GetResult(ctx context.Context) []string
+	GetMaster(ctx context.Context, i int, query string, db *sql.DB) error
+	GetSlave(ctx context.Context, query string, db *sql.DB) error
+	WriteResult(ctx context.Context, outputFile string) error
+	Close() error
 }
 
 type Comparator struct {
@@ -27,106 +28,115 @@ type Comparator struct {
 	Storage
 }
 
-func NewComparator() (*Comparator, error) {
-	mSQL, err := files.ReadCatalog(config.Cfg.MasterSQL)
+func NewComparator(ctx context.Context) (*Comparator, error) {
+	mSQL, err := files.ReadSQLSources(config.Cfg.MasterSQLDir, config.Cfg.MasterSQLGlob, config.Cfg.MasterSQLFiles)
 	if err != nil {
-		return nil, fmt.Errorf("readCatalog MasterSQL: %w", err)
+		return nil, fmt.Errorf("read master sql sources: %w", err)
 	}
-	sSQL, err := files.ReadFile(config.Cfg.SlaveSQL)
+	if len(mSQL) == 0 {
+		return nil, fmt.Errorf("master sql files not found: dir=%s glob=%s files=%v", config.Cfg.MasterSQLDir, config.Cfg.MasterSQLGlob, config.Cfg.MasterSQLFiles)
+	}
+	sSQL, err := files.ReadFile(config.Cfg.SlaveSQLFile)
 	if err != nil {
-		return nil, fmt.Errorf("readFile SlaveSQL: %w", err)
+		return nil, fmt.Errorf("read slave sql file: %w", err)
 	}
-	store := storage.GetMemStorage() //todo - storage.getSQLLightStorage (from config)
-	return &Comparator{
-			masterSQL: mSQL,
-			slaveSQL:  sSQL,
-			Storage:   store},
-		nil
+
+	store, err := storage.GetSQLiteStorage(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("init sqlite storage: %w", err)
+	}
+
+	return &Comparator{masterSQL: mSQL, slaveSQL: sSQL, Storage: store}, nil
 }
 
 func (c *Comparator) Run(ctx context.Context) error {
-	err := c.getMasterData(ctx)
-	if err != nil {
+	defer func() {
+		if err := c.Close(); err != nil {
+			logger.Log.Error("close storage", zap.Error(err))
+		}
+	}()
+
+	if err := c.getMasterData(ctx); err != nil {
 		return fmt.Errorf("get master data: %w", err)
 	}
 	logger.Log.Info("Get master data OK")
-	err = c.getSlaveData(ctx)
-	if err != nil {
+
+	if err := c.getSlaveData(ctx); err != nil {
 		return fmt.Errorf("get slave data: %w", err)
 	}
+	logger.Log.Info("Get slave data OK")
 
-	resultGuids := c.GetResult(ctx)
-
-	logger.Log.Info("write results", zap.Int("count", len(resultGuids)))
-	err = files.WriteFile(config.Cfg.Мode+".txt", resultGuids)
-	if err != nil {
-		return fmt.Errorf("write file: %w", err)
+	if err := c.WriteResult(ctx, config.Cfg.Mode+".txt"); err != nil {
+		return fmt.Errorf("write result: %w", err)
 	}
-	logger.Log.Info("write statistic")
-	var statistic = make([]string, 0)
-	statistic = append(statistic,
+
+	statistic := []string{
 		"--------------------------------------------",
-		fmt.Sprintf("Мode: %v", config.Cfg.Мode),
-		fmt.Sprintf("Masterdsn: %v", config.Cfg.Masterdsn),
-		fmt.Sprintf("Slavedsn: %v", config.Cfg.Slavedsn),
+		fmt.Sprintf("Mode: %v", config.Cfg.Mode),
+		fmt.Sprintf("MasterDSN: %v", config.Cfg.MasterDSN),
+		fmt.Sprintf("SlaveDSN: %v", config.Cfg.SlaveDSN),
 		fmt.Sprintf("LogLevel: %v", config.Cfg.LogLevel),
 		fmt.Sprintf("Limit: %v", config.Cfg.Limit),
 		fmt.Sprintf("RateLimit: %v", config.Cfg.RateLimit),
-		fmt.Sprintf("MasterSQL: %v", config.Cfg.MasterSQL),
-		fmt.Sprintf("SlaveSQL: %v", config.Cfg.SlaveSQL),
-		"--------------------------------------------")
+		fmt.Sprintf("MasterSQLDir: %v", config.Cfg.MasterSQLDir),
+		fmt.Sprintf("MasterSQLGlob: %v", config.Cfg.MasterSQLGlob),
+		fmt.Sprintf("MasterSQLFiles: %v", config.Cfg.MasterSQLFiles),
+		fmt.Sprintf("SlaveSQLFile: %v", config.Cfg.SlaveSQLFile),
+		fmt.Sprintf("Storage: %v", config.Cfg.Storage),
+		fmt.Sprintf("SQLitePath: %v", config.Cfg.SQLitePath),
+		fmt.Sprintf("SQLiteWriteBatch: %v", config.Cfg.SQLiteWriteBatch),
+		fmt.Sprintf("SQLiteCacheSizeKB: %v", config.Cfg.SQLiteCacheSizeKB),
+		fmt.Sprintf("SQLiteMmapSizeMB: %v", config.Cfg.SQLiteMmapSizeMB),
+		fmt.Sprintf("OutputDir: %v", config.Cfg.OutputDir),
+		"--------------------------------------------",
+	}
 	statistic = append(statistic, result.Res.GetResult()...)
-	err = files.WriteFile("stat.txt", statistic)
-	if err != nil {
+	if err := files.WriteFile("stat.txt", statistic); err != nil {
 		logger.Log.Error("write file stat.txt", zap.Error(err))
 	}
 	return nil
 }
 
 func (c *Comparator) getMasterData(ctx context.Context) error {
-	//get master data
-	mastedDB, err := db.NweConn(config.Cfg.Masterdsn)
+	masterDB, err := db.NweConn(config.Cfg.MasterDSN, config.Cfg.MaxOpenConnsMaster)
 	if err != nil {
-		logger.Log.Error("conn master", zap.Error(err))
 		return fmt.Errorf("conn master: %w", err)
 	}
-	if err := mastedDB.PingContext(ctx); err != nil {
-		logger.Log.Error("ping master", zap.Error(err))
+	defer masterDB.Close()
+
+	if err := masterDB.PingContext(ctx); err != nil {
 		return fmt.Errorf("ping master: %w", err)
 	}
+
 	g := errgroup.Group{}
 	g.SetLimit(config.Cfg.RateLimit)
 	for i, script := range c.masterSQL {
+		i := i
+		script := script
 		g.Go(func() error {
-			err = c.Storage.GetMaster(ctx, i, script, mastedDB)
-			if err != nil {
-				logger.Log.Error("get master", zap.Error(err))
-				return fmt.Errorf("get master: %w", err)
+			if err := c.Storage.GetMaster(ctx, i, script, masterDB); err != nil {
+				return fmt.Errorf("get master %d: %w", i, err)
 			}
 			return nil
 		})
 	}
 	if err := g.Wait(); err != nil {
-		logger.Log.Error("get master data", zap.Error(err))
 		return fmt.Errorf("get master data: %w", err)
 	}
 	return nil
 }
 
 func (c *Comparator) getSlaveData(ctx context.Context) error {
-	//get slave data
-	slaveDB, err := db.NweConn(config.Cfg.Slavedsn)
+	slaveDB, err := db.NweConn(config.Cfg.SlaveDSN, config.Cfg.MaxOpenConnsSlave)
 	if err != nil {
-		logger.Log.Error("conn slave", zap.Error(err))
 		return fmt.Errorf("conn slave: %w", err)
 	}
+	defer slaveDB.Close()
+
 	if err := slaveDB.PingContext(ctx); err != nil {
-		logger.Log.Error("ping slave", zap.Error(err))
 		return fmt.Errorf("ping slave: %w", err)
 	}
-	err = c.Storage.GetSlave(ctx, c.slaveSQL, slaveDB)
-	if err != nil {
-		logger.Log.Error("get slave data", zap.Error(err))
+	if err := c.Storage.GetSlave(ctx, c.slaveSQL, slaveDB); err != nil {
 		return fmt.Errorf("get slave data: %w", err)
 	}
 	return nil
