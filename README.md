@@ -14,12 +14,12 @@
 
 ```yaml
 web_enabled: true
-web_listen: ":8080"
+web_listen: ":8081"
 ```
 
 страницы будут доступны так:
 
-- HTML: `http://localhost:8080/`
+- HTML: `http://localhost:8081/`
 - JSON: `http://localhost:8080/api/status`
 - health: `http://localhost:8080/healthz`
 
@@ -27,7 +27,7 @@ web_listen: ":8080"
 
 ```yaml
 web_enabled: true
-web_listen: ":8080"
+web_listen: ":8081"
 web_refresh_sec: 2
 web_read_timeout_sec: 5
 web_write_timeout_sec: 30
