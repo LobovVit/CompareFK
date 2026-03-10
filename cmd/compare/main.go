@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/LobovVit/CompareFK/internal/result"
+	"github.com/LobovVit/CompareFK/internal/web"
 	"go.uber.org/zap"
 
 	"github.com/LobovVit/CompareFK/internal/app"
@@ -44,6 +45,12 @@ func run(ctx context.Context) error {
 
 	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGABRT)
 	defer cancel()
+
+	if config.Cfg.WebEnabled {
+		if _, err := web.Start(ctx); err != nil {
+			return fmt.Errorf("web initialize: %w", err)
+		}
+	}
 
 	application, err := app.NewComparator(ctx)
 	if err != nil {
@@ -82,5 +89,8 @@ func showConfig(c *config.Config) {
 	logger.Log.Info(fmt.Sprintf("config---SQLiteMmapSizeMB: %v", c.SQLiteMmapSizeMB))
 	logger.Log.Info(fmt.Sprintf("config---SQLiteWriteBatch: %v", c.SQLiteWriteBatch))
 	logger.Log.Info(fmt.Sprintf("config---OutputDir: %v", c.OutputDir))
+	logger.Log.Info(fmt.Sprintf("config---WebEnabled: %v", c.WebEnabled))
+	logger.Log.Info(fmt.Sprintf("config---WebListen: %v", c.WebListen))
+	logger.Log.Info(fmt.Sprintf("config---WebRefreshSec: %v", c.WebRefreshSec))
 	logger.Log.Info("--------------------------------------------")
 }

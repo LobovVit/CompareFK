@@ -16,20 +16,20 @@ import (
 )
 
 type Storage interface {
-	GetMaster(ctx context.Context, i int, query string, db *sql.DB) error
+	GetMaster(ctx context.Context, name string, query string, db *sql.DB) error
 	GetSlave(ctx context.Context, query string, db *sql.DB) error
 	WriteResult(ctx context.Context, outputFile string) error
 	Close() error
 }
 
 type Comparator struct {
-	masterSQL []string
+	masterSQL []files.SQLSource
 	slaveSQL  string
 	Storage
 }
 
 func NewComparator(ctx context.Context) (*Comparator, error) {
-	mSQL, err := files.ReadSQLSources(config.Cfg.MasterSQLDir, config.Cfg.MasterSQLGlob, config.Cfg.MasterSQLFiles)
+	mSQL, err := files.ResolveSQLSources(config.Cfg.MasterSQLDir, config.Cfg.MasterSQLGlob, config.Cfg.MasterSQLFiles)
 	if err != nil {
 		return nil, fmt.Errorf("read master sql sources: %w", err)
 	}
@@ -49,10 +49,15 @@ func NewComparator(ctx context.Context) (*Comparator, error) {
 	return &Comparator{masterSQL: mSQL, slaveSQL: sSQL, Storage: store}, nil
 }
 
-func (c *Comparator) Run(ctx context.Context) error {
+func (c *Comparator) Run(ctx context.Context) (runErr error) {
 	defer func() {
 		if err := c.Close(); err != nil {
 			logger.Log.Error("close storage", zap.Error(err))
+		}
+		if runErr != nil {
+			result.Res.FailRun(runErr)
+		} else {
+			result.Res.FinishRun()
 		}
 	}()
 
@@ -88,6 +93,8 @@ func (c *Comparator) Run(ctx context.Context) error {
 		fmt.Sprintf("SQLiteCacheSizeKB: %v", config.Cfg.SQLiteCacheSizeKB),
 		fmt.Sprintf("SQLiteMmapSizeMB: %v", config.Cfg.SQLiteMmapSizeMB),
 		fmt.Sprintf("OutputDir: %v", config.Cfg.OutputDir),
+		fmt.Sprintf("WebEnabled: %v", config.Cfg.WebEnabled),
+		fmt.Sprintf("WebListen: %v", config.Cfg.WebListen),
 		"--------------------------------------------",
 	}
 	statistic = append(statistic, result.Res.GetResult()...)
@@ -110,12 +117,11 @@ func (c *Comparator) getMasterData(ctx context.Context) error {
 
 	g := errgroup.Group{}
 	g.SetLimit(config.Cfg.RateLimit)
-	for i, script := range c.masterSQL {
-		i := i
+	for _, script := range c.masterSQL {
 		script := script
 		g.Go(func() error {
-			if err := c.Storage.GetMaster(ctx, i, script, masterDB); err != nil {
-				return fmt.Errorf("get master %d: %w", i, err)
+			if err := c.Storage.GetMaster(ctx, script.Name, script.Content, masterDB); err != nil {
+				return fmt.Errorf("get master %s: %w", script.Name, err)
 			}
 			return nil
 		})

@@ -9,4 +9,10 @@
 -- 	and trx.settlement_date >  TO_DATE('2024-01-01','YYYY-MM-DD')
 -- group by doc_external_id
 -- having sum(nvl(debit_amount,0)) != 0;
-select id from bra.doc_d_001 dd where id = any($1)
+select dd.id
+from bra.doc_d_001 dd
+         cross join lateral (
+    select pg_sleep(0.05)
+where dd.id is not null
+    ) s
+where dd.id = any($1);

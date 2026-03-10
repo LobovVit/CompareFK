@@ -98,40 +98,48 @@ CREATE TABLE IF NOT EXISTS matched_guids (
 	return nil
 }
 
-func (s *SQLiteStorage) GetMaster(ctx context.Context, i int, query string, srcDB *sql.DB) error {
-	executeFileName := strconv.Itoa(i) + "_master.sql"
+func (s *SQLiteStorage) GetMaster(ctx context.Context, name string, query string, srcDB *sql.DB) error {
+	executeFileName := name
 	if err := files.WriteSQLFile(executeFileName, query); err != nil {
 		logger.Log.Error("write SQL file error", zap.Error(err))
 	}
 
 	startTime := time.Now()
+	result.Res.StartTask(executeFileName, "master")
 	rows, err := srcDB.QueryContext(ctx, query)
 	if err != nil {
+		result.Res.FailTask(executeFileName, err)
 		return fmt.Errorf("select master query: %w", err)
 	}
 	defer rows.Close()
 
-	count, err := s.insertIntoTable(ctx, rows, "master_guids")
+	count, err := s.insertIntoTable(ctx, rows, "master_guids", executeFileName)
 	if err != nil {
+		result.Res.FailTask(executeFileName, err)
 		return fmt.Errorf("load master into sqlite: %w", err)
 	}
 
 	result.Res.AddStat(executeFileName, result.ScriptStat{StartTime: startTime, EndTime: time.Now(), Count: count})
+	result.Res.FinishTask(executeFileName)
 	logger.Log.Info("master chunk loaded", zap.String("script", executeFileName), zap.Int("count", count))
 	return nil
 }
 
 func (s *SQLiteStorage) GetSlave(ctx context.Context, query string, slaveDB *sql.DB) error {
 	executeFileName := "slave.sql"
+	startTime := time.Now()
+	result.Res.StartTask(executeFileName, "slave")
 	if err := files.WriteSQLFile(executeFileName, query); err != nil {
 		logger.Log.Error("write SQL file error", zap.Error(err))
 	}
 
 	chunks, err := s.masterChunkCount(ctx)
 	if err != nil {
+		result.Res.FailTask(executeFileName, err)
 		return err
 	}
 	logger.Log.Info("slave compare started", zap.Int("parts", chunks), zap.Int("limit", config.Cfg.Limit))
+	totalProcessed := 0
 
 	for part := 0; part < chunks; part++ {
 		startPos := part * config.Cfg.Limit
@@ -149,8 +157,11 @@ func (s *SQLiteStorage) GetSlave(ctx context.Context, query string, slaveDB *sql
 		}
 
 		if err := s.addPartSlave(ctx, query, masterChunk, startPos, endPos, slaveDB); err != nil {
+			result.Res.FailTask(executeFileName, err)
 			return err
 		}
+		result.Res.AddRows(executeFileName, len(masterChunk))
+		totalProcessed += len(masterChunk)
 	}
 
 	if config.Cfg.SQLiteRunAnalyze {
@@ -163,6 +174,8 @@ func (s *SQLiteStorage) GetSlave(ctx context.Context, query string, slaveDB *sql
 			logger.Log.Warn("sqlite vacuum failed", zap.Error(err))
 		}
 	}
+	result.Res.AddStat(executeFileName, result.ScriptStat{StartTime: startTime, EndTime: time.Now(), Count: totalProcessed})
+	result.Res.FinishTask(executeFileName)
 	return nil
 }
 
@@ -205,19 +218,23 @@ func (s *SQLiteStorage) loadMasterChunk(ctx context.Context, limit, offset int) 
 func (s *SQLiteStorage) addPartSlave(ctx context.Context, query string, chunk []string, startPos, endPos int, slaveDB *sql.DB) error {
 	executeFileName := "slave_" + strconv.Itoa(startPos) + "_" + strconv.Itoa(endPos) + ".sql"
 	startTime := time.Now()
+	result.Res.StartTask(executeFileName, "slave_chunk")
 
 	rows, err := slaveDB.QueryContext(ctx, query, chunk)
 	if err != nil {
+		result.Res.FailTask(executeFileName, err)
 		return fmt.Errorf("select slave query: %w", err)
 	}
 	defer rows.Close()
 
-	count, err := s.insertIntoTable(ctx, rows, "matched_guids")
+	count, err := s.insertIntoTable(ctx, rows, "matched_guids", executeFileName)
 	if err != nil {
+		result.Res.FailTask(executeFileName, err)
 		return fmt.Errorf("load slave chunk into sqlite: %w", err)
 	}
 
 	result.Res.AddStat(executeFileName, result.ScriptStat{StartTime: startTime, EndTime: time.Now(), Count: count})
+	result.Res.FinishTask(executeFileName)
 	logger.Log.Info("slave chunk processed",
 		zap.String("script", executeFileName),
 		zap.Int("chunk_size", len(chunk)),
@@ -225,7 +242,7 @@ func (s *SQLiteStorage) addPartSlave(ctx context.Context, query string, chunk []
 	return nil
 }
 
-func (s *SQLiteStorage) insertIntoTable(ctx context.Context, rows *sql.Rows, table string) (int, error) {
+func (s *SQLiteStorage) insertIntoTable(ctx context.Context, rows *sql.Rows, table string, taskName string) (int, error) {
 	batchSize := config.Cfg.SQLiteWriteBatch
 	count := 0
 	currentBatch := 0
@@ -267,6 +284,9 @@ func (s *SQLiteStorage) insertIntoTable(ctx context.Context, rows *sql.Rows, tab
 		}
 		count++
 		currentBatch++
+		if count%1000 == 0 {
+			result.Res.AddRows(taskName, 1000)
+		}
 
 		if currentBatch >= batchSize {
 			if err := commitAndReopen(); err != nil {
@@ -284,6 +304,9 @@ func (s *SQLiteStorage) insertIntoTable(ctx context.Context, rows *sql.Rows, tab
 	}
 	if err := tx.Commit(); err != nil {
 		return 0, fmt.Errorf("commit tx: %w", err)
+	}
+	if rem := count % 1000; rem != 0 {
+		result.Res.AddRows(taskName, rem)
 	}
 	return count, nil
 }
@@ -304,10 +327,12 @@ func (s *SQLiteStorage) beginInsert(ctx context.Context, table string) (*sql.Tx,
 func (s *SQLiteStorage) WriteResult(ctx context.Context, outputFile string) error {
 	executeStep := "z_compute_" + config.Cfg.Mode
 	startTime := time.Now()
+	result.Res.StartTask(executeStep, "result")
 
 	query := s.resultQuery()
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
+		result.Res.FailTask(executeStep, err)
 		return fmt.Errorf("query result: %w", err)
 	}
 	defer rows.Close()
@@ -315,6 +340,7 @@ func (s *SQLiteStorage) WriteResult(ctx context.Context, outputFile string) erro
 	path := filepath.Join(result.Res.DateTimeFolder, outputFile)
 	file, err := os.Create(path)
 	if err != nil {
+		result.Res.FailTask(executeStep, err)
 		return fmt.Errorf("create result file: %w", err)
 	}
 	defer file.Close()
@@ -324,15 +350,21 @@ func (s *SQLiteStorage) WriteResult(ctx context.Context, outputFile string) erro
 	for rows.Next() {
 		var guid string
 		if err := rows.Scan(&guid); err != nil {
+			result.Res.FailTask(executeStep, err)
 			return fmt.Errorf("scan result guid: %w", err)
 		}
 		if _, err := writer.WriteString(guid); err != nil {
+			result.Res.FailTask(executeStep, err)
 			return fmt.Errorf("write result guid: %w", err)
 		}
 		if _, err := writer.WriteString("\r\n"); err != nil {
+			result.Res.FailTask(executeStep, err)
 			return fmt.Errorf("write result delimiter: %w", err)
 		}
 		count++
+		if count%1000 == 0 {
+			result.Res.AddRows(executeStep, 1000)
+		}
 		if config.Cfg.SQLiteResultFetchSize > 0 && count%config.Cfg.SQLiteResultFetchSize == 0 {
 			if err := writer.Flush(); err != nil {
 				return fmt.Errorf("flush result writer: %w", err)
@@ -340,13 +372,19 @@ func (s *SQLiteStorage) WriteResult(ctx context.Context, outputFile string) erro
 		}
 	}
 	if err := rows.Err(); err != nil {
+		result.Res.FailTask(executeStep, err)
 		return fmt.Errorf("result rows: %w", err)
 	}
 	if err := writer.Flush(); err != nil {
+		result.Res.FailTask(executeStep, err)
 		return fmt.Errorf("flush result writer: %w", err)
+	}
+	if rem := count % 1000; rem != 0 {
+		result.Res.AddRows(executeStep, rem)
 	}
 
 	result.Res.AddStat(executeStep, result.ScriptStat{StartTime: startTime, EndTime: time.Now(), Count: count})
+	result.Res.FinishTask(executeStep)
 	logger.Log.Info("result written", zap.String("file", path), zap.Int("count", count))
 	return nil
 }
