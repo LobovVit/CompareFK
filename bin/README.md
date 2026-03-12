@@ -4,7 +4,7 @@
 
 Основной режим работы теперь — через локальную SQLite, чтобы резко снизить расход RAM при сравнении больших наборов GUID.
 
-# CompareFK + web monitor
+# CompareFK + web monitor + скрытие паролей из log/stat 
 
 В проект добавлен простой встроенный web-сервер для онлайн-наблюдения за выполнением.
 
@@ -20,8 +20,8 @@ web_listen: ":8081"
 страницы будут доступны так:
 
 - HTML: `http://localhost:8081/`
-- JSON: `http://localhost:8080/api/status`
-- health: `http://localhost:8080/healthz`
+- JSON: `http://localhost:8081/api/status`
+- health: `http://localhost:8081/healthz`
 
 ## Поля конфига
 

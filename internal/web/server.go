@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/LobovVit/CompareFK/internal/config"
@@ -71,7 +72,9 @@ func handleIndex(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-var indexTemplate = template.Must(template.New("index").Parse(`<!doctype html>
+var indexTemplate = template.Must(template.New("index").Funcs(template.FuncMap{
+	"join": strings.Join,
+}).Parse(`<!doctype html>
 <html lang="ru">
 <head>
   <meta charset="utf-8">
@@ -79,14 +82,18 @@ var indexTemplate = template.Must(template.New("index").Parse(`<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CompareFK monitor</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 24px; color: #1f2937; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 24px; color: #1f2937; background: #f8fafc; }
     h1,h2 { margin: 0 0 12px 0; }
     .muted { color: #6b7280; }
     .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 16px 0 24px; }
-    .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+    .card { border: 1px solid #e5e7eb; border-radius: 16px; padding: 14px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
     .label { color: #6b7280; font-size: 12px; margin-bottom: 6px; }
     .value { font-size: 24px; font-weight: 600; }
-    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .big { font-size: 18px; font-weight: 600; }
+    .section { margin: 18px 0 24px; }
+    .progress-wrap { background: #e5e7eb; border-radius: 999px; overflow: hidden; height: 10px; }
+    .progress-bar { background: #2563eb; height: 100%; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; background: #fff; border-radius: 16px; overflow: hidden; }
     th, td { padding: 10px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; text-align: left; }
     th { position: sticky; top: 0; background: #f9fafb; }
     .status-running { color: #1d4ed8; font-weight: 600; }
@@ -96,6 +103,8 @@ var indexTemplate = template.Must(template.New("index").Parse(`<!doctype html>
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     .toolbar { margin-bottom: 14px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
     .pill { padding: 6px 10px; border-radius: 999px; background: #eef2ff; color: #3730a3; font-size: 13px; }
+    .small { font-size: 12px; }
+    .nowrap { white-space: nowrap; }
   </style>
 </head>
 <body>
@@ -108,13 +117,21 @@ var indexTemplate = template.Must(template.New("index").Parse(`<!doctype html>
   </div>
 
   <div class="cards">
-    <div class="card"><div class="label">Время запуска</div><div class="value" style="font-size:16px">{{.Snapshot.StartedAt.Format "2006-01-02 15:04:05"}}</div></div>
+    <div class="card"><div class="label">Время запуска</div><div class="big">{{.Snapshot.StartedAt.Format "2006-01-02 15:04:05"}}</div></div>
     <div class="card"><div class="label">Прошло</div><div class="value">{{.Snapshot.Elapsed}}</div></div>
+    <div class="card"><div class="label">Общий прогресс</div><div class="value">{{printf "%.1f%%" .Snapshot.OverallProgressPct}}</div></div>
+    <div class="card"><div class="label">Скорость</div><div class="value">{{printf "%.2f" .Snapshot.RowsPerSec}}</div><div class="small muted">rows/sec</div></div>
+    <div class="card"><div class="label">ETA</div><div class="value">{{if .Snapshot.ETA}}{{.Snapshot.ETA}}{{else}}—{{end}}</div></div>
     <div class="card"><div class="label">Всего задач</div><div class="value">{{.Snapshot.TotalTasks}}</div></div>
     <div class="card"><div class="label">Выполняются</div><div class="value">{{.Snapshot.RunningTasks}}</div></div>
-    <div class="card"><div class="label">Завершены</div><div class="value">{{.Snapshot.CompletedTasks}}</div></div>
-    <div class="card"><div class="label">Ошибки</div><div class="value">{{.Snapshot.FailedTasks}}</div></div>
     <div class="card"><div class="label">Обработано строк</div><div class="value">{{.Snapshot.TotalRowsProcessed}}</div></div>
+  </div>
+
+  <div class="section card">
+    <div class="label">Текущие SQL</div>
+    <div class="big mono">{{if .Snapshot.CurrentSQL}}{{join .Snapshot.CurrentSQL ", "}}{{else}}нет активных SQL{{end}}</div>
+    <div style="margin-top:12px" class="progress-wrap"><div class="progress-bar" style="width: {{printf "%.2f" .Snapshot.OverallProgressPct}}%"></div></div>
+    <div class="muted small" style="margin-top:8px;">Известный объём строк: {{.Snapshot.KnownTotalRows}}</div>
   </div>
 
   <div class="muted" style="margin-bottom:12px;">Каталог текущего запуска: <span class="mono">{{.Snapshot.CurrentRunDir}}</span></div>
@@ -127,6 +144,10 @@ var indexTemplate = template.Must(template.New("index").Parse(`<!doctype html>
         <th>Фаза</th>
         <th>Статус</th>
         <th>Строк</th>
+        <th>Всего</th>
+        <th>%</th>
+        <th>rows/sec</th>
+        <th>ETA</th>
         <th>Старт</th>
         <th>Стоп</th>
         <th>Длительность</th>
@@ -137,10 +158,14 @@ var indexTemplate = template.Must(template.New("index").Parse(`<!doctype html>
     <tbody>
       {{range .Snapshot.Tasks}}
       <tr>
-        <td class="mono">{{.Name}}</td>
+        <td class="mono nowrap">{{.Name}}</td>
         <td>{{.Phase}}</td>
         <td class="status-{{.Status}}">{{.Status}}</td>
         <td>{{.Rows}}</td>
+        <td>{{if .TotalRows}}{{.TotalRows}}{{else}}—{{end}}</td>
+        <td>{{printf "%.1f%%" .ProgressPct}}</td>
+        <td>{{printf "%.2f" .RowsPerSec}}</td>
+        <td>{{if .ETA}}{{.ETA}}{{else}}—{{end}}</td>
         <td>{{.Started}}</td>
         <td>{{.Ended}}</td>
         <td>{{.Duration}}</td>

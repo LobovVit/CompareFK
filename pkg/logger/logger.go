@@ -9,6 +9,7 @@ import (
 	"github.com/LobovVit/CompareFK/internal/result"
 
 	"github.com/LobovVit/CompareFK/internal/config"
+	"github.com/LobovVit/CompareFK/pkg/db"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -18,6 +19,10 @@ var Log = zap.NewNop()
 
 type WriteSyncer struct {
 	io.Writer
+}
+
+func (ws WriteSyncer) Write(p []byte) (n int, err error) {
+	return ws.Writer.Write([]byte(db.RedactText(string(p))))
 }
 
 func (ws WriteSyncer) Sync() error {
@@ -66,11 +71,11 @@ func SetOutput(ws zapcore.WriteSyncer, conf zap.Config) zap.Option {
 func getWriteSyncer(logName string) zapcore.WriteSyncer {
 	var ioWriter = &lumberjack.Logger{
 		Filename:   logName,
-		MaxSize:    10, // MB
-		MaxBackups: 3,  // number of backups
-		MaxAge:     28, //days
+		MaxSize:    10,
+		MaxBackups: 3,
+		MaxAge:     28,
 		LocalTime:  true,
-		Compress:   false, // disabled by default
+		Compress:   false,
 	}
 	var sw = WriteSyncer{
 		ioWriter,

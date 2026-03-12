@@ -2,6 +2,7 @@ package result
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/LobovVit/CompareFK/internal/config"
+	"github.com/LobovVit/CompareFK/pkg/db"
 )
 
 var Res *Result
@@ -37,6 +39,7 @@ type TaskState struct {
 	StartTime time.Time `json:"start_time"`
 	EndTime   time.Time `json:"end_time"`
 	Rows      int       `json:"rows"`
+	TotalRows int       `json:"total_rows"`
 	Message   string    `json:"message,omitempty"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -55,20 +58,29 @@ type Snapshot struct {
 	FailedTasks        int        `json:"failed_tasks"`
 	PendingTasks       int        `json:"pending_tasks"`
 	TotalRowsProcessed int        `json:"total_rows_processed"`
+	KnownTotalRows     int        `json:"known_total_rows"`
+	OverallProgressPct float64    `json:"overall_progress_pct"`
+	RowsPerSec         float64    `json:"rows_per_sec"`
+	ETA                string     `json:"eta"`
+	CurrentSQL         []string   `json:"current_sql"`
 	Elapsed            string     `json:"elapsed"`
 	Tasks              []TaskView `json:"tasks"`
 }
 
 type TaskView struct {
-	Name      string `json:"name"`
-	Status    string `json:"status"`
-	Phase     string `json:"phase"`
-	Rows      int    `json:"rows"`
-	Started   string `json:"started"`
-	Ended     string `json:"ended"`
-	Duration  string `json:"duration"`
-	Message   string `json:"message,omitempty"`
-	UpdatedAt string `json:"updated_at"`
+	Name        string  `json:"name"`
+	Status      string  `json:"status"`
+	Phase       string  `json:"phase"`
+	Rows        int     `json:"rows"`
+	TotalRows   int     `json:"total_rows"`
+	ProgressPct float64 `json:"progress_pct"`
+	RowsPerSec  float64 `json:"rows_per_sec"`
+	ETA         string  `json:"eta"`
+	Started     string  `json:"started"`
+	Ended       string  `json:"ended"`
+	Duration    string  `json:"duration"`
+	Message     string  `json:"message,omitempty"`
+	UpdatedAt   string  `json:"updated_at"`
 }
 
 func Initialize(_ string) error {
@@ -97,23 +109,42 @@ func Initialize(_ string) error {
 	return nil
 }
 
-func (r *Result) StartTask(name, phase string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	now := time.Now()
+func (r *Result) ensureTask(name string) *TaskState {
 	if _, ok := r.Tasks[name]; !ok {
 		r.Order = append(r.Order, name)
 		r.Tasks[name] = &TaskState{Name: name}
 	}
-	t := r.Tasks[name]
+	return r.Tasks[name]
+}
+
+func (r *Result) StartTask(name, phase string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	now := time.Now()
+	t := r.ensureTask(name)
 	t.Name = name
 	t.Phase = phase
 	t.Status = "running"
-	t.StartTime = now
+	if t.StartTime.IsZero() {
+		t.StartTime = now
+	}
 	t.EndTime = time.Time{}
 	t.Rows = 0
 	t.Message = ""
 	t.UpdatedAt = now
+}
+
+func (r *Result) SetTaskTotal(name string, total int) {
+	if total <= 0 {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	t := r.ensureTask(name)
+	if total > t.TotalRows {
+		t.TotalRows = total
+	}
+	t.UpdatedAt = time.Now()
 }
 
 func (r *Result) AddRows(name string, delta int) {
@@ -122,12 +153,12 @@ func (r *Result) AddRows(name string, delta int) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	t, ok := r.Tasks[name]
-	if !ok {
-		now := time.Now()
-		r.Order = append(r.Order, name)
-		t = &TaskState{Name: name, Status: "running", StartTime: now, UpdatedAt: now}
-		r.Tasks[name] = t
+	t := r.ensureTask(name)
+	if t.Status == "" {
+		t.Status = "running"
+	}
+	if t.StartTime.IsZero() {
+		t.StartTime = time.Now()
 	}
 	t.Rows += delta
 	t.UpdatedAt = time.Now()
@@ -140,6 +171,9 @@ func (r *Result) FinishTask(name string) {
 		now := time.Now()
 		t.Status = "done"
 		t.EndTime = now
+		if t.TotalRows == 0 || t.Rows > t.TotalRows {
+			t.TotalRows = t.Rows
+		}
 		t.UpdatedAt = now
 	}
 }
@@ -153,7 +187,7 @@ func (r *Result) FailTask(name string, err error) {
 		t.EndTime = now
 		t.UpdatedAt = now
 		if err != nil {
-			t.Message = err.Error()
+			t.Message = db.RedactText(err.Error())
 		}
 	}
 }
@@ -161,11 +195,7 @@ func (r *Result) FailTask(name string, err error) {
 func (r *Result) AddStat(name string, stat ScriptStat) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, ok := r.Tasks[name]; !ok {
-		r.Order = append(r.Order, name)
-		r.Tasks[name] = &TaskState{Name: name}
-	}
-	t := r.Tasks[name]
+	t := r.ensureTask(name)
 	t.Name = name
 	if t.Phase == "" {
 		t.Phase = inferPhase(name)
@@ -173,6 +203,9 @@ func (r *Result) AddStat(name string, stat ScriptStat) {
 	t.StartTime = stat.StartTime
 	t.EndTime = stat.EndTime
 	t.Rows = stat.Count
+	if t.TotalRows == 0 || stat.Count > t.TotalRows {
+		t.TotalRows = stat.Count
+	}
 	t.Status = "done"
 	t.UpdatedAt = time.Now()
 }
@@ -190,15 +223,12 @@ func (r *Result) FailRun(err error) {
 	r.RunStatus = "failed"
 	r.FinishedAt = time.Now()
 	if err != nil {
-		if _, ok := r.Tasks["run_error"]; !ok {
-			r.Order = append(r.Order, "run_error")
-			r.Tasks["run_error"] = &TaskState{Name: "run_error", Phase: "system"}
-		}
-		t := r.Tasks["run_error"]
+		t := r.ensureTask("run_error")
 		t.Status = "failed"
+		t.Phase = "system"
 		t.StartTime = r.StartedAt
 		t.EndTime = r.FinishedAt
-		t.Message = err.Error()
+		t.Message = db.RedactText(err.Error())
 		t.UpdatedAt = r.FinishedAt
 	}
 }
@@ -208,17 +238,37 @@ func (r *Result) Snapshot() Snapshot {
 	defer r.mu.RUnlock()
 
 	now := time.Now()
+	elapsedUntil := now
+	if !r.FinishedAt.IsZero() {
+		elapsedUntil = r.FinishedAt
+	}
+	elapsedSeconds := elapsedUntil.Sub(r.StartedAt).Seconds()
+	if elapsedSeconds <= 0 {
+		elapsedSeconds = 1
+	}
+
 	tasks := make([]TaskView, 0, len(r.Order))
-	var running, done, failed, pending, totalRows int
+	currentSQL := make([]string, 0, 8)
+	var running, done, failed, pending, totalRows, knownTotalRows, knownDoneRows int
+
 	for _, name := range r.Order {
 		t := r.Tasks[name]
 		if t == nil {
 			continue
 		}
 		totalRows += t.Rows
+		if t.TotalRows > 0 {
+			knownTotalRows += t.TotalRows
+			if t.Rows > t.TotalRows {
+				knownDoneRows += t.TotalRows
+			} else {
+				knownDoneRows += t.Rows
+			}
+		}
 		switch t.Status {
 		case "running":
 			running++
+			currentSQL = append(currentSQL, t.Name)
 		case "done":
 			done++
 		case "failed":
@@ -226,23 +276,48 @@ func (r *Result) Snapshot() Snapshot {
 		default:
 			pending++
 		}
+		durationSeconds := durationSeconds(t.StartTime, t.EndTime, t.Status)
+		rowsPerSec := 0.0
+		if durationSeconds > 0 {
+			rowsPerSec = float64(t.Rows) / durationSeconds
+		}
+		progressPct := 0.0
+		eta := ""
+		if t.TotalRows > 0 {
+			progressPct = clampPercent(float64(minInt(t.Rows, t.TotalRows)) / float64(t.TotalRows) * 100)
+			if t.Rows < t.TotalRows && rowsPerSec > 0 {
+				eta = time.Duration(float64(time.Second) * (float64(t.TotalRows-t.Rows) / rowsPerSec)).Round(time.Second).String()
+			}
+		} else if t.Status == "done" {
+			progressPct = 100
+		}
 		tasks = append(tasks, TaskView{
-			Name:      t.Name,
-			Status:    t.Status,
-			Phase:     t.Phase,
-			Rows:      t.Rows,
-			Started:   formatTime(t.StartTime),
-			Ended:     formatTime(t.EndTime),
-			Duration:  formatDuration(t.StartTime, t.EndTime, t.Status),
-			Message:   t.Message,
-			UpdatedAt: formatTime(t.UpdatedAt),
+			Name:        t.Name,
+			Status:      t.Status,
+			Phase:       t.Phase,
+			Rows:        t.Rows,
+			TotalRows:   t.TotalRows,
+			ProgressPct: progressPct,
+			RowsPerSec:  round2(rowsPerSec),
+			ETA:         eta,
+			Started:     formatTime(t.StartTime),
+			Ended:       formatTime(t.EndTime),
+			Duration:    formatDuration(t.StartTime, t.EndTime, t.Status),
+			Message:     t.Message,
+			UpdatedAt:   formatTime(t.UpdatedAt),
 		})
 	}
 
-	elapsedUntil := now
-	if !r.FinishedAt.IsZero() {
-		elapsedUntil = r.FinishedAt
+	rowsPerSec := round2(float64(totalRows) / elapsedSeconds)
+	overallProgress := 0.0
+	eta := ""
+	if knownTotalRows > 0 {
+		overallProgress = clampPercent(float64(knownDoneRows) / float64(knownTotalRows) * 100)
+		if knownDoneRows < knownTotalRows && rowsPerSec > 0 {
+			eta = time.Duration(float64(time.Second) * (float64(knownTotalRows-knownDoneRows) / rowsPerSec)).Round(time.Second).String()
+		}
 	}
+
 	return Snapshot{
 		GeneratedAt:        now,
 		RunStatus:          r.RunStatus,
@@ -257,6 +332,11 @@ func (r *Result) Snapshot() Snapshot {
 		FailedTasks:        failed,
 		PendingTasks:       pending,
 		TotalRowsProcessed: totalRows,
+		KnownTotalRows:     knownTotalRows,
+		OverallProgressPct: overallProgress,
+		RowsPerSec:         rowsPerSec,
+		ETA:                eta,
+		CurrentSQL:         currentSQL,
 		Elapsed:            elapsedUntil.Sub(r.StartedAt).Round(time.Second).String(),
 		Tasks:              tasks,
 	}
@@ -272,7 +352,11 @@ func (r *Result) GetResult() []string {
 			fmt.Sprintf("%*v|", 20, "Старт")+
 			fmt.Sprintf("%*v|", 20, "Стоп")+
 			fmt.Sprintf("%*v|", 20, "Длительность")+
-			fmt.Sprintf("%*v|", 15, "Кол-во"),
+			fmt.Sprintf("%*v|", 15, "Кол-во")+
+			fmt.Sprintf("%*v|", 15, "Всего")+
+			fmt.Sprintf("%*v|", 10, "%")+
+			fmt.Sprintf("%*v|", 12, "rows/s")+
+			fmt.Sprintf("%*v|", 12, "ETA"),
 	)
 	for _, t := range snap.Tasks {
 		res = append(res, "|"+fmt.Sprintf("%-*v|", 30, t.Name)+
@@ -281,7 +365,11 @@ func (r *Result) GetResult() []string {
 			fmt.Sprintf("%*v|", 20, t.Started)+
 			fmt.Sprintf("%*v|", 20, t.Ended)+
 			fmt.Sprintf("%*v|", 20, t.Duration)+
-			fmt.Sprintf("%*v|", 15, t.Rows))
+			fmt.Sprintf("%*v|", 15, t.Rows)+
+			fmt.Sprintf("%*v|", 15, zeroToBlank(t.TotalRows))+
+			fmt.Sprintf("%*.1f|", 10, t.ProgressPct)+
+			fmt.Sprintf("%*.2f|", 12, t.RowsPerSec)+
+			fmt.Sprintf("%*v|", 12, t.ETA))
 	}
 	slices.Sort(res[1:])
 	return res
@@ -323,4 +411,45 @@ func formatDuration(start, end time.Time, status string) string {
 		return ""
 	}
 	return end.Sub(start).Round(time.Second).String()
+}
+
+func durationSeconds(start, end time.Time, status string) float64 {
+	if start.IsZero() {
+		return 0
+	}
+	if end.IsZero() && status == "running" {
+		return time.Since(start).Seconds()
+	}
+	if end.IsZero() {
+		return 0
+	}
+	return end.Sub(start).Seconds()
+}
+
+func round2(v float64) float64 {
+	return math.Round(v*100) / 100
+}
+
+func clampPercent(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 100 {
+		return 100
+	}
+	return round2(v)
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func zeroToBlank(v int) any {
+	if v == 0 {
+		return ""
+	}
+	return v
 }
