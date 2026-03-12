@@ -13,6 +13,7 @@ import (
 
 	"github.com/LobovVit/CompareFK/internal/app"
 	"github.com/LobovVit/CompareFK/internal/config"
+	"github.com/LobovVit/CompareFK/pkg/db"
 	"github.com/LobovVit/CompareFK/pkg/logger"
 )
 
@@ -73,8 +74,8 @@ func showConfig(c *config.Config) {
 	logger.Log.Info("--------" + time.Now().Format(time.DateTime) + "------")
 	logger.Log.Info("--------------------------------------------")
 	logger.Log.Info(fmt.Sprintf("config---Mode: %v", c.Mode))
-	logger.Log.Info(fmt.Sprintf("config---MasterDSN: %v", c.MasterDSN))
-	logger.Log.Info(fmt.Sprintf("config---SlaveDSN: %v", c.SlaveDSN))
+	logger.Log.Info(fmt.Sprintf("config---MasterDB: %v", db.SafeDSNInfo(c.MasterDSN)))
+	logger.Log.Info(fmt.Sprintf("config---SlaveDB: %v", db.SafeDSNInfo(c.SlaveDSN)))
 	logger.Log.Info(fmt.Sprintf("config---LogLevel: %v", c.LogLevel))
 	logger.Log.Info(fmt.Sprintf("config---Limit: %v", c.Limit))
 	logger.Log.Info(fmt.Sprintf("config---RateLimit: %v", c.RateLimit))

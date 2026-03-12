@@ -20,8 +20,8 @@ web_listen: ":8081"
 страницы будут доступны так:
 
 - HTML: `http://localhost:8081/`
-- JSON: `http://localhost:8080/api/status`
-- health: `http://localhost:8080/healthz`
+- JSON: `http://localhost:8081/api/status`
+- health: `http://localhost:8081/healthz`
 
 ## Поля конфига
 

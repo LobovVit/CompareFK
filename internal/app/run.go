@@ -78,8 +78,8 @@ func (c *Comparator) Run(ctx context.Context) (runErr error) {
 	statistic := []string{
 		"--------------------------------------------",
 		fmt.Sprintf("Mode: %v", config.Cfg.Mode),
-		fmt.Sprintf("MasterDSN: %v", config.Cfg.MasterDSN),
-		fmt.Sprintf("SlaveDSN: %v", config.Cfg.SlaveDSN),
+		fmt.Sprintf("MasterDB: %v", db.SafeDSNInfo(config.Cfg.MasterDSN)),
+		fmt.Sprintf("SlaveDB: %v", db.SafeDSNInfo(config.Cfg.SlaveDSN)),
 		fmt.Sprintf("LogLevel: %v", config.Cfg.LogLevel),
 		fmt.Sprintf("Limit: %v", config.Cfg.Limit),
 		fmt.Sprintf("RateLimit: %v", config.Cfg.RateLimit),
@@ -107,12 +107,12 @@ func (c *Comparator) Run(ctx context.Context) (runErr error) {
 func (c *Comparator) getMasterData(ctx context.Context) error {
 	masterDB, err := db.NweConn(config.Cfg.MasterDSN, config.Cfg.MaxOpenConnsMaster)
 	if err != nil {
-		return fmt.Errorf("conn master: %w", err)
+		return fmt.Errorf("conn master [%s]: %w", db.RedactDSN(config.Cfg.MasterDSN), err)
 	}
 	defer masterDB.Close()
 
 	if err := masterDB.PingContext(ctx); err != nil {
-		return fmt.Errorf("ping master: %w", err)
+		return fmt.Errorf("ping master [%s]: %w", db.RedactDSN(config.Cfg.MasterDSN), err)
 	}
 
 	g := errgroup.Group{}
@@ -135,12 +135,12 @@ func (c *Comparator) getMasterData(ctx context.Context) error {
 func (c *Comparator) getSlaveData(ctx context.Context) error {
 	slaveDB, err := db.NweConn(config.Cfg.SlaveDSN, config.Cfg.MaxOpenConnsSlave)
 	if err != nil {
-		return fmt.Errorf("conn slave: %w", err)
+		return fmt.Errorf("conn slave [%s]: %w", db.RedactDSN(config.Cfg.SlaveDSN), err)
 	}
 	defer slaveDB.Close()
 
 	if err := slaveDB.PingContext(ctx); err != nil {
-		return fmt.Errorf("ping slave: %w", err)
+		return fmt.Errorf("ping slave [%s]: %w", db.RedactDSN(config.Cfg.SlaveDSN), err)
 	}
 	if err := c.Storage.GetSlave(ctx, c.slaveSQL, slaveDB); err != nil {
 		return fmt.Errorf("get slave data: %w", err)
