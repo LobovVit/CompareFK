@@ -10,3 +10,7 @@ build_win:
 
 build:
 	go build  -ldflags "-X $(PACKAGE).buildCommit=$(REVISION) -X $(PACKAGE).buildVersion=$(BRANCH) -X $(PACKAGE).buildDate=$(DATE)" -o bin/$(APP)  cmd/compare/main.go
+
+build_linux:
+	GOOS=linux GOARCH=amd64 go build \
+	-ldflags "-X $(PACKAGE).buildCommit=$(REVISION) -X $(PACKAGE).buildVersion=$(BRANCH) -X $(PACKAGE).buildDate=$(DATE)" -o bin/$(APP)_linux cmd/compare/main.go
